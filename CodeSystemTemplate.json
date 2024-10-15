@@ -1,0 +1,24 @@
+{
+  "resourceType": "CodeSystem",
+  "title": "LAST-PART-OF-CODE-SYSTEM-URL Supplement gebunden an CS-Version",
+  "url": "https://fdpg.de/fhir/CodeSystem/LAST-PART-OF-CODE-SYSTEM-WITHOUT-VERSION/translations",
+  "status": "draft",
+  "id": "fdpg-supplement-codesystem-LAST-PART-OF-CODE-SYSTEM-URL",
+  "supplements": "CODE-SYSTEM-URL|CODE-SYSTEM-VERSION",
+  "version": "1.0.0",
+  "content": "supplement",
+  "contact": [
+    {
+      "telecom": [
+        {
+          "system": "email"
+        }
+      ]
+    }
+  ],
+  "compositional": false,
+  "concept": [
+  ],
+  "count": "CONCEPT-COUNT",
+  "name": "administrative-gender_supplement"
+}

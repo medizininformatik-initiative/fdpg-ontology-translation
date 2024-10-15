@@ -1,0 +1,10 @@
+[
+  {
+    "url": "https://www.medizininformatik-initiative.de/fhir/core/modul-person/ValueSet/Vitalstatus",
+    "source_lang" : "de"
+  },
+  {
+    "url": "http://fhir.de/ValueSet/bfarm/ops",
+    "source_lang": "de"
+  }
+]
