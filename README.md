@@ -16,6 +16,7 @@
 - ValueSets.json
   - generate the valuesets.json based on a folder stored locally by executing the script: generate_default_value_set_list.py
     - specify the folder using the ***--value_sets_folder*** argument
+    - if you want automatic language detection use ***--lang_detection***
   - or prepare the json file yourself, which holds pairs of (urls,source_language) like in the example below:
      ````json
     [
