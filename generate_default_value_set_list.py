@@ -14,7 +14,7 @@ def configure_args_parser():
                             nargs="?", default="value-sets")
     arg_parser.add_argument("--log_level", type=str, help="notset|debug|info|warning|error|critical", nargs="?",
                             default="info")
-    arg_parser.add_argument("--deepl_api_key", type=str, help="deepl api key")
+    arg_parser.add_argument("--deepl_api_key", type=str, help="deepl api key", nargs="?",default="no_key")
     arg_parser.add_argument("--lang_detection", action='store_true', help="without language detection")
 
     return arg_parser
@@ -41,7 +41,10 @@ if __name__ == "__main__":
     args = configure_args_parser().parse_args()
     configure_logging(args.log_level)
 
-    deepl_engine = deepl.Translator(args.deepl_api_key)
+    deepl_engine = None
+    if args.deepl_api_key != "no_key":
+        deepl_engine = deepl.Translator(args.deepl_api_key)
+
     folder_path = args.value_sets_folder
 
     try:
@@ -61,7 +64,7 @@ if __name__ == "__main__":
 
                 files.append({
                     "url": os.path.join(folder_path, f),
-                    "source_lang": source_lang
+                    "source_lang": source_lang.lower()
                 })
 
         with open("valueSets.default.json", "w", encoding="utf-8") as file:
