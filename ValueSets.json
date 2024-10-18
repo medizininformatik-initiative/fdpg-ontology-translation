@@ -4,7 +4,11 @@
     "source_lang" : "de"
   },
   {
-    "url": "http://fhir.de/ValueSet/bfarm/ops",
-    "source_lang": "de"
+    "url": "value-sets/kontaktart-de.json",
+    "source_lang" : "de"
+  },
+  {
+    "url": "value-sets/administrative-gender.json",
+    "source_lang" : "en"
   }
 ]

@@ -4,6 +4,9 @@ from urllib.parse import urlparse
 import logging
 import deepl
 
+import argostranslate.package
+import argostranslate.translate
+
 logger = logging.getLogger(__name__)
 
 
@@ -11,6 +14,7 @@ class Translator:
     def __init__(
             self, deepl_auth_key, session, terminology_server_address, target_langs
     ):
+        self.argos = None
         self.value_set = None
         self.code_system_template = None
         self.code_system_version = None
@@ -20,6 +24,19 @@ class Translator:
         self.session = session
         self.terminology_server_address = terminology_server_address
         self.target_langs = target_langs
+
+    def configure_argos_translate(self, source_lang, target_lang):
+
+        # Download and install Argos Translate package
+        argostranslate.package.update_package_index()
+        available_packages = argostranslate.package.get_available_packages()
+        package_to_install = next(
+            filter(
+                lambda x: x.from_code == source_lang and x.to_code == target_lang, available_packages
+            )
+        )
+        argostranslate.package.install_from_path(package_to_install.download())
+        self.argos=argostranslate
 
     def get_code_system_url(self):
         for param in self.value_set["expansion"]["parameter"]:
@@ -56,7 +73,26 @@ class Translator:
             return "en-us"
         return lang_code
 
-    def translate(self, value_set_url, source_lang, dry_run , batch_size=5):
+    def translate_batch(self, translation_batch, source_lang, target_lang, translation_engine="deepl"):
+        translations = []
+        if translation_engine == "deepl":
+            logger.info("Translating using deepl ...")
+            translations = self.deepl_engine.translate_text(
+                translation_batch,
+                source_lang=source_lang,
+                target_lang=self.convert_lang_code_to_deepl(target_lang),
+                context=self.code_system_name
+            )
+
+            return [translation.text for translation in translations]
+        if translation_engine == "argos":
+            logger.info("Translating using argos ...")
+            self.configure_argos_translate(source_lang, target_lang)
+            for term in translation_batch:
+                translations.append(self.argos.translate.translate(term, source_lang, target_lang))
+            return translations
+
+    def translate(self, value_set_url, source_lang, dry_run, batch_size=5, translation_engine="deepl"):
         self.value_set = self.get_value_sets(value_set_url)
         if not self.value_set:
             return 0
@@ -87,15 +123,7 @@ class Translator:
                 text_translated = text
 
                 if target_lang != source_lang and not dry_run:
-                    logger.info("Translating....")
-                    translations = self.deepl_engine.translate_text(
-                        text,
-                        source_lang=source_lang,
-                        target_lang=self.convert_lang_code_to_deepl(target_lang),
-                        context=self.code_system_name
-                    )
-
-                    text_translated = [translation.text for translation in translations]
+                    text_translated = self.translate_batch(text, source_lang, target_lang, translation_engine)
 
                 for index in range(0, len(concepts)):
                     concepts[index]["designation"].append(
@@ -108,7 +136,6 @@ class Translator:
             self.code_system_template["concept"].append(concepts)
 
         return char_count
-
 
     def save(self, target_folder):
 

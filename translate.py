@@ -16,12 +16,18 @@ def configure_args_parser():
     arg_parser.add_argument("--private_key", type=str, help="The private key")
     arg_parser.add_argument("--deepl_api_key", type=str, help="The DeepL API key")
     arg_parser.add_argument("--value_sets", type=str, help="File with the urls and languages")
-    arg_parser.add_argument("--target_folder",type=str,help="Folder to output the translated files to",nargs="?",default="code-systems")
-    arg_parser.add_argument("--log_level",type=str,help="notset|debug|info|warning|error|critical",nargs="?",default="info")
-    arg_parser.add_argument("--batch_size",type=int,help="Integer specifying the count of elements sent simultaneously",nargs="?",default="3")
-    arg_parser.add_argument('--dry_run', action='store_true', help='Do not translate, only count number of characters that would be translated')
+    arg_parser.add_argument("--target_folder", type=str, help="Folder to output the translated files to", nargs="?",
+                            default="code-systems")
+    arg_parser.add_argument("--log_level", type=str, help="notset|debug|info|warning|error|critical", nargs="?",
+                            default="info")
+    arg_parser.add_argument("--batch_size", type=int,
+                            help="Integer specifying the count of elements sent simultaneously", nargs="?", default="3")
+    arg_parser.add_argument('--dry_run', action='store_true',
+                            help='Do not translate, only count number of characters that would be translated')
+    arg_parser.add_argument('--translation_engine', type=str, help='deepl|argos')
 
     return arg_parser
+
 
 def configure_logging(log_level_arg):
     log_level = {
@@ -54,7 +60,11 @@ if __name__ == "__main__":
 
     for value_set in value_sets:
 
-        chars_translated = translator.translate(value_set["url"], value_set["source_lang"], args.dry_run, batch_size=args.batch_size)
+        chars_translated = translator.translate(value_set["url"],
+                                                value_set["source_lang"],
+                                                args.dry_run,
+                                                batch_size=args.batch_size,
+                                                translation_engine=args.translation_engine)
 
         if chars_translated > 0:
             logger.info(f"ValueSet: {value_set['url']} contains characters: {chars_translated}")
@@ -62,5 +72,5 @@ if __name__ == "__main__":
             translator.save(target_folder=args.target_folder)
             nr_of_translated_files += 1
 
-    logger.info("Total: %s files",nr_of_translated_files)
+    logger.info("Total: %s files", nr_of_translated_files)
     logger.info(f"Total: {characters_translated:,} characters translated")
