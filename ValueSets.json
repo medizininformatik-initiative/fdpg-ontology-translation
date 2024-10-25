@@ -1,10 +1,78 @@
 [
   {
+    "url": "http://fhir.de/ValueSet/dkgev/Fachabteilungsschluessel",
+    "source_lang": "de"
+  },
+  {
+    "url": "http://hl7.org/fhir/sid/icd-10/vs",
+    "source_lang": "de"
+  },
+  {
     "url": "https://www.medizininformatik-initiative.de/fhir/core/modul-person/ValueSet/Vitalstatus",
-    "source_lang" : "de"
+    "source_lang": "de"
+  },
+  {
+    "url": "https://www.medizininformatik-initiative.de/fhir/modul-consent/ValueSet/mii-vs-consent-policy",
+    "source_lang": "de"
+  },
+  {
+    "url": "https://www.medizininformatik-initiative.de/fhir/ext/modul-biobank/ValueSet/icd-o-3-topography",
+    "source_lang": "de"
+  },
+  {
+    "url": "http://fhir.de/ValueSet/kontaktebene-de",
+    "source_lang": "de"
+  },
+  {
+    "url": "http://fhir.de/ValueSet/bfarm/icd-10-gm",
+    "source_lang": "de"
+  },
+  {
+    "url": "http://hl7.org/fhir/ValueSet/administrative-gender",
+    "source_lang": "en"
+  },
+  {
+    "url": "https://www.medizininformatik-initiative.de/fhir/ext/modul-biobank/ValueSet/probenart",
+    "source_lang": "en"
+  },
+  {
+    "url": "http://fhir.de/ValueSet/bfarm/alpha-id",
+    "source_lang": "de"
+  },
+  {
+    "url": "http://fhir.de/ValueSet/EncounterClassDE",
+    "source_lang": "de"
+  },
+  {
+    "url": "http://fhir.de/ValueSet/kontaktart-de",
+    "source_lang": "de"
   },
   {
     "url": "http://fhir.de/ValueSet/bfarm/ops",
     "source_lang": "de"
+  },
+  {
+    "url": "http://fhir.de/ValueSet/dkgev/Fachabteilungsschluessel-erweitert",
+    "source_lang": "de"
+  },
+  {
+    "url": "http://fhir.de/ValueSet/ifa/pzn",
+    "source_lang": "de"
+  },
+  {
+    "url": "http://fhir.de/ValueSet/bfarm/atc",
+    "source_lang": "de"
+  },
+  {
+    "url": "https://www.medizininformatik-initiative.de/fhir/modul-consent/ValueSet/mii-vs-consent-policy",
+    "source_lang": "de"
+  },
+  {
+    "url": "https://www.medizininformatik-initiative.de/fhir/core/modul-diagnose/ValueSet/mii-vs-diagnose-orphanet",
+    "source_lang": "de"
+  },
+  {
+    "url": "http://hl7.org/fhir/ValueSet/manifestation-or-symptom",
+    "source_lang": "en"
   }
 ]

@@ -65,6 +65,9 @@ class Translator:
         self.code_system_version = self.get_code_system_url().split("|")[-1]
         self.code_system_template = json.load(open("CodeSystemTemplate.json", "r", encoding="utf-8"))
 
+        if "contains" not in self.value_set["expansion"]:
+            return 0
+
         concepts_to_translate = self.value_set["expansion"]["contains"]
         nr_of_values = len(concepts_to_translate)
         char_count = 0
