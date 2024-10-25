@@ -15,7 +15,7 @@ def configure_args_parser():
     arg_parser.add_argument("--log_level", type=str, help="notset|debug|info|warning|error|critical", nargs="?",
                             default="info")
     arg_parser.add_argument("--deepl_api_key", type=str, help="deepl api key", nargs="?",default="no_key")
-    arg_parser.add_argument("--lang_detection", action='store_true', help="without language detection")
+    arg_parser.add_argument("--lang_detection", action='store_true', help="with language detection")
 
     return arg_parser
 
@@ -42,8 +42,11 @@ if __name__ == "__main__":
     configure_logging(args.log_level)
 
     deepl_engine = None
-    if args.deepl_api_key != "no_key":
-        deepl_engine = deepl.Translator(args.deepl_api_key)
+    if args.lang_detection:
+        if args.deepl_api_key == "no_key":
+            logger.error("no key was provided, proceeding without language detection")
+        else:
+            deepl_engine = deepl.Translator(args.deepl_api_key)
 
     folder_path = args.value_sets_folder
 
@@ -54,18 +57,21 @@ if __name__ == "__main__":
             if os.path.isfile(os.path.join(folder_path, f)) and f.endswith(".json"):
 
                 source_lang = "de"
-                if args.lang_detection:
-                    with open(os.path.join(folder_path, f), "r", encoding="utf-8") as json_file:
-                        json_data = json.load(json_file)
-                        value_set_sample = json_data["expansion"]["contains"][0]["display"]
+
+                with open(os.path.join(folder_path, f), "r", encoding="utf-8") as json_file:
+                    json_data = json.load(json_file)
+                    value_set_sample = json_data["expansion"]["contains"][0]["display"]
+
+                if args.deepl_api_key != "no_key" and args.lang_detection:
                     result = deepl_engine.translate_text(text=value_set_sample, target_lang="DE")
                     logger.info(value_set_sample + " -> source: " + result.detected_source_lang)
                     source_lang = result.detected_source_lang
 
                 files.append({
-                    "url": os.path.join(folder_path, f),
+                    "url": json_data["url"],
                     "source_lang": source_lang.lower()
                 })
+                logger.info("added " + json_data["url"] + " ->" + source_lang)
 
         with open("valueSets.default.json", "w", encoding="utf-8") as file:
             json.dump(files, file, ensure_ascii=False)
