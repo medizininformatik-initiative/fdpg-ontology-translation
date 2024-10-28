@@ -92,7 +92,7 @@ class Translator:
                         text,
                         source_lang=source_lang,
                         target_lang=self.convert_lang_code_to_deepl(target_lang),
-                        context=self.code_system_name
+                        context="medical encoding"
                     )
 
                     text_translated = [translation.text for translation in translations]
