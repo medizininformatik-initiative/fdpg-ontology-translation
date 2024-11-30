@@ -3,13 +3,14 @@ import os
 from urllib.parse import urlparse
 import logging
 import deepl
+from TerminologyDesignationResolver import TerminologyDesignationResolver
 
 logger = logging.getLogger(__name__)
 
 
 class Translator:
     def __init__(
-            self, deepl_auth_key, session, terminology_server_address, target_langs
+            self, deepl_auth_key, session, terminology_server_address, target_langs, terminology_server_config
     ):
         self.value_set = None
         self.code_system_template = None
@@ -20,6 +21,11 @@ class Translator:
         self.session = session
         self.terminology_server_address = terminology_server_address
         self.target_langs = target_langs
+        self.code_systems = None
+        self.max_bundle_size = 100
+        self.terminologyResolver = TerminologyDesignationResolver(terminology_server_address, self.session, terminology_server_config)
+
+
 
     def get_code_system_url(self):
         for param in self.value_set["expansion"]["parameter"]:
@@ -34,7 +40,7 @@ class Translator:
             .replace("/", ""),
         )
 
-    def get_value_sets(self, value_set_url):
+    def get_value_sets(self, value_set_url) -> dict | bool:
         try:
             with open(value_set_url, "r", encoding="utf-8") as file:
                 return json.load(file)
@@ -56,7 +62,23 @@ class Translator:
             return "en-us"
         return lang_code
 
-    def translate(self, value_set_url, source_lang, dry_run , batch_size=5):
+    def translate(self, value_set_url, source_lang, dry_run , batch_size=5) -> int:
+        """
+        Translates a value_set with sources in the following order with the terminology_resolver:
+            1. translations from the fdpg_plus_supplement_registry
+            2. overriden by the existing official codesystem translations
+            3. gaps are filled in by ai(deepl) in batches
+
+        :param value_set_url:
+        :param source_lang:
+        :param dry_run: indicates if it is a test run for calculating expected word count/cost, If true nothing is sent to ai for translating
+        :param batch_size: count of codes that are sent to ai at the same time
+        :return: char_count
+        """
+
+        logger.info("")
+        logger.info("Started Translating:" + value_set_url )
+
         self.value_set = self.get_value_sets(value_set_url)
         if not self.value_set:
             return 0
@@ -69,47 +91,61 @@ class Translator:
             return 0
 
         concepts_to_translate = self.value_set["expansion"]["contains"]
-        nr_of_values = len(concepts_to_translate)
+        self.terminologyResolver.load_base_designations_for_value_set(self.value_set)
+        translated_concepts = {}
+
+        for concept in concepts_to_translate:
+            concept_code = concept.get('code')
+            if  self.terminologyResolver.code_systems.get(concept["system"]) and self.terminologyResolver.code_systems.get(concept["system"]).get('concept'):
+                translation = self.terminologyResolver.code_systems.get(concept["system"]).get('concept').get(concept_code)
+                translated_concepts[concept_code] = {"de":translation.get('de'),"en":translation.get('en'),"display":concept.get('display')}
+            else:
+                translated_concepts[concept_code] = {"de":"","en":"","display":concept.get('display')}
+                translated_concepts[concept_code][source_lang] = concept.get('display')
+
+        batch_for_ai = {}
         char_count = 0
+        for language in self.target_langs:
+            i = 0
+            for concept_code, concept_content in translated_concepts.items():
+                i += 1
+                if not concept_content.get(language) or concept_content.get(language) == "":
+                    batch_for_ai[concept_code] = concept_content
+                if batch_size <= len(batch_for_ai) or (i == len(translated_concepts) and len(batch_for_ai) > 0):
+                    text = []
+                    for code,content in batch_for_ai.items():
+                        text.append(content.get('display'))
+                        char_count = char_count + len(content.get('display'))
 
-        for value_index in range(0, nr_of_values, batch_size):
-            concepts = []
-            text = []
+                    if not dry_run:
+                        logger.info("Translating...." + value_set_url)
+                        translations = self.deepl_engine.translate_text(
+                            text,
+                            source_lang=source_lang,
+                            target_lang=self.convert_lang_code_to_deepl(language),
+                        )
 
-            for concept in concepts_to_translate[value_index:min(value_index + batch_size, nr_of_values)]:
-                concepts.append(
-                    {
-                        "code": concept["code"],
-                        "designation": []
-                    }
-                )
-                text.append(concept["display"])
-                char_count = char_count + len(concept["display"])
+                        for (code,content),translation in zip(batch_for_ai.items(),translations):
+                            content[language] = translation.text
 
-            for target_lang in self.target_langs:
-                text_translated = text
+                    batch_for_ai = {}
 
-                if target_lang != source_lang and not dry_run:
-                    logger.info("Translating....")
-                    translations = self.deepl_engine.translate_text(
-                        text,
-                        source_lang=source_lang,
-                        target_lang=self.convert_lang_code_to_deepl(target_lang),
-                        context=self.code_system_name
-                    )
+        for code,concept in translated_concepts.items():
+            self.code_system_template["concept"].append({
+            "code": code,
+            "designation": [
+                {
+                    "language": "de",
+                    "value": concept.get('de')
+                },
+                {
+                    "language": "en",
+                    "value": concept.get('en')
+                }
+            ]
+        })
 
-                    text_translated = [translation.text for translation in translations]
-
-                for index in range(0, len(concepts)):
-                    concepts[index]["designation"].append(
-                        {
-                            "value": text_translated[index],
-                            "language": target_lang
-                        }
-                    )
-
-            self.code_system_template["concept"].append(concepts)
-
+        logger.info("Finished Translating:" + value_set_url )
         return char_count
 
 

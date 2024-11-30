@@ -1,0 +1,30 @@
+{
+  "code_system_translations": {
+    "http://snomed.info/sct": {
+      "resourceType": "Parameters",
+      "parameter": [
+        {
+          "name": "property",
+          "valueCode": "designation"
+        },
+        {
+          "name": "displayLanguage",
+          "valueCode": "de-DE"
+        }
+      ]
+    },
+    "http://loinc.org": {
+      "resourceType": "Parameters",
+      "parameter": [
+        {
+          "name": "property",
+          "valueCode": "designation"
+        },
+        {
+          "name": "displayLanguage",
+          "valueCode": "de-DE"
+        }
+      ]
+    }
+  }
+}
