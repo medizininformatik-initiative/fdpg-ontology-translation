@@ -2,3 +2,6 @@ __pycache__
 value-set-input.json
 test.py
 output
+test-translate.py
+code_system_translations
+ValueSets_bak.json
