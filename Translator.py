@@ -110,17 +110,17 @@ class Translator:
                 translated_concepts[concept_code] = {"de":"","en":"","display":concept.get('display')}
                 translated_concepts[concept_code][source_lang] = concept.get('display')
 
-        batch_for_ai = {}
+        batch_to_translate = {}
         char_count = 0
         for language in self.target_langs:
             i = 0
             for concept_code, concept_content in translated_concepts.items():
                 i += 1
                 if not concept_content.get(language) or concept_content.get(language) == "":
-                    batch_for_ai[concept_code] = concept_content
-                if batch_size <= len(batch_for_ai) or (i == len(translated_concepts) and len(batch_for_ai) > 0):
+                    batch_to_translate[concept_code] = concept_content
+                if batch_size <= len(batch_to_translate) or (i == len(translated_concepts) and len(batch_to_translate) > 0):
                     text = []
-                    for code,content in batch_for_ai.items():
+                    for code,content in batch_to_translate.items():
                         text.append(content.get('display'))
                         char_count = char_count + len(content.get('display'))
 
@@ -132,10 +132,10 @@ class Translator:
                             target_lang=self.convert_lang_code_to_deepl(language),
                         )
 
-                        for (code,content),translation in zip(batch_for_ai.items(),translations):
+                        for (code,content),translation in zip(batch_to_translate.items(),translations):
                             content[language] = translation.text
 
-                    batch_for_ai = {}
+                    batch_to_translate = {}
 
         for code,concept in translated_concepts.items():
             self.code_system_template["concept"].append({

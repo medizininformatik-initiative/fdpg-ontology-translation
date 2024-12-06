@@ -24,7 +24,7 @@ def configure_args_parser():
     arg_parser.add_argument('--dry_run', action='store_true', help='Do not translate, only count number of characters that would be translated')
 
     arg_parser.add_argument("--terminology_server_config", type=str, help="The terminology server config", default="terminology_server_config.json")
-    arg_parser.add_argument("--use_available_translations", action='store_true', help='Use available translations from specified terminology server')
+    arg_parser.add_argument("--update_translation_supplements", action='store_true', help='Use available translations from supplement registry on server')
 
     return arg_parser
 
@@ -52,23 +52,15 @@ if __name__ == "__main__":
     session = requests.Session()
     session.cert = (args.server_certificate, args.private_key)
 
-
-
     value_sets = json.load(open(args.value_sets, "r", encoding="utf-8"))
     translator = Translator(args.deepl_api_key, session, args.terminology_server, target_langs=["de", "en"],terminology_server_config=args.terminology_server_config)
 
-    if translator.terminologyResolver:
-        translator.terminologyResolver.load_designations(update_translation_supplements=True)
-
-
+    translator.terminologyResolver.load_designations(update_translation_supplements=args.update_translation_supplements)
     nr_of_translated_files = 0
     characters_translated = 0
 
-
     for value_set in value_sets:
-
         chars_translated = translator.translate(value_set["url"], value_set["source_lang"], args.dry_run, batch_size=args.batch_size)
-
         if chars_translated > 0:
             logger.info(f"ValueSet: {value_set['url']} contains characters: {chars_translated}")
             characters_translated = characters_translated + chars_translated
