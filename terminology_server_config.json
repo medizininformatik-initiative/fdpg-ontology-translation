@@ -10,6 +10,10 @@
         {
           "name": "displayLanguage",
           "valueCode": "de-DE"
+        },
+        {
+            "name": "version",
+            "valueString": "http://snomed.info/sct/11000274103"
         }
       ]
     },

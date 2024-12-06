@@ -3,6 +3,7 @@ import copy
 import logging
 import os
 from itertools import groupby
+import re
 
 from typing import List, TypeVar
 from FhirUtil import create_bundle, BundleType
@@ -10,22 +11,24 @@ from FhirUtil import create_bundle, BundleType
 logger = logging.getLogger(__name__)
 
 
-def extract_designation(parameters: dict, language: str) -> str | None:
+def extract_designation(parameters: dict, language: str, fuzzy = True) -> str | None:
     """
     Helper function for extracting language code specific designation display value from `Parameters` resource
     :param parameters: `Parameters` resource to extract display value from
     :param language: Language code identifying display value to extract
+    :param fuzzy:
     :return: Either `str` display value or `None` if no designation for language codes exists
     """
     for designation in filter(lambda p: p.get("name") == "designation", parameters.get("parameter", [])):
         part = designation.get("part")
         if part:
             designation_language = list(filter(lambda p: p.get("name") == "language", part))[0].get("valueCode")
+            if len(list(filter(lambda p: p.get("name") == "use", part))) == 0: continue
             designation_use = list(filter(lambda p: p.get("name") == "use", part))[0].get("valueCoding").get("code")
-            if designation_language == language and designation_use == "display":
+            matches = re.match(rf'^{language}(-\S+)?$', designation_language) if fuzzy else (language == designation_language)
+            if matches and (designation_use == "display" or designation_use == "preferredForLanguage"):
                 return list(filter(lambda p: p.get("name") == "value", part))[0].get("valueString")
     return None
-
 
 T = TypeVar("T")
 
@@ -160,6 +163,10 @@ class TerminologyDesignationResolver:
                         for language in languages:
                             code = list(filter(lambda p: p.get("name") == "code", resource.get("parameter", [])))[0] \
                                 .get("valueCode")
+
+                            if code == '38577009':
+                                print("found 38577009")
+
                             designation = extract_designation(resource, language)
                             if designation:
                                 if code not in code_system_concepts:

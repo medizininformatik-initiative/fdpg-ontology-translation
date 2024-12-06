@@ -58,7 +58,7 @@ if __name__ == "__main__":
     translator = Translator(args.deepl_api_key, session, args.terminology_server, target_langs=["de", "en"],terminology_server_config=args.terminology_server_config)
 
     if translator.terminologyResolver:
-        translator.terminologyResolver.load_designations(update_translation_supplements=True)
+        translator.terminologyResolver.load_designations(update_translation_supplements=False)
 
 
     nr_of_translated_files = 0

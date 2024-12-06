@@ -50,6 +50,7 @@ class Translator:
         onto_server_value_set_url = f"{self.terminology_server_address}ValueSet/$expand?url={value_set_url}"
         response = self.session.get(onto_server_value_set_url)
         if response.status_code == 200:
+            logger.info("Downloaded Value-set")
             return response.json()
         else:
             logger.error("Request failed with status code %s:", response.status_code)
@@ -96,9 +97,15 @@ class Translator:
 
         for concept in concepts_to_translate:
             concept_code = concept.get('code')
-            if  self.terminologyResolver.code_systems.get(concept["system"]) and self.terminologyResolver.code_systems.get(concept["system"]).get('concept'):
-                translation = self.terminologyResolver.code_systems.get(concept["system"]).get('concept').get(concept_code)
-                translated_concepts[concept_code] = {"de":translation.get('de'),"en":translation.get('en'),"display":concept.get('display')}
+            concept_system =self.terminologyResolver.code_systems.get(concept["system"])
+            if  concept_system and concept_system.get('concept') and concept_system.get('concept').get(concept_code):
+                template = {"de":"","en":"","display":concept.get('display')}
+                translation = concept_system.get('concept').get(concept_code)
+                if translation.get('de'):
+                    template['de'] = translation.get('de')
+                if translation.get('en'):
+                    template['en'] = translation.get('en')
+                translated_concepts[concept_code] = template
             else:
                 translated_concepts[concept_code] = {"de":"","en":"","display":concept.get('display')}
                 translated_concepts[concept_code][source_lang] = concept.get('display')
@@ -170,7 +177,7 @@ class Translator:
             os.makedirs(target_folder)
 
         with open(os.path.join(target_folder, f"{self.code_system_name}.json"), "w", encoding="utf-8") as file:
-            json.dump(self.code_system_template, file, ensure_ascii=False)
+            json.dump(self.code_system_template, file, ensure_ascii=False, indent=4)
 
         logger.info(
             "Translated %s. Saved at %s/%s.json",
