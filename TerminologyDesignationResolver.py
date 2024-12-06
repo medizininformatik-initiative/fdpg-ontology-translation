@@ -163,10 +163,6 @@ class TerminologyDesignationResolver:
                         for language in languages:
                             code = list(filter(lambda p: p.get("name") == "code", resource.get("parameter", [])))[0] \
                                 .get("valueCode")
-
-                            if code == '38577009':
-                                print("found 38577009")
-
                             designation = extract_designation(resource, language)
                             if designation:
                                 if code not in code_system_concepts:
