@@ -1,14 +1,26 @@
 [
   {
+    "url": "https://www.medizininformatik-initiative.de/fhir/core/modul-diagnose/ValueSet/diagnoses-sct",
+    "source_lang": "en"
+  },
+  {
+    "url": "https://www.medizininformatik-initiative.de/fhir/core/modul-prozedur/ValueSet/procedures-sct",
+    "source_lang": "en"
+  },
+  {
+    "url": "http://hl7.org/fhir/uv/ips/ValueSet/results-laboratory-observations-uv-ips",
+    "source_lang": "en"
+  },
+  {
+    "url": "https://www.medizininformatik-initiative.de/fhir/core/modul-person/ValueSet/Vitalstatus",
+    "source_lang": "de"
+  },
+  {
     "url": "http://fhir.de/ValueSet/dkgev/Fachabteilungsschluessel",
     "source_lang": "de"
   },
   {
     "url": "http://hl7.org/fhir/sid/icd-10/vs",
-    "source_lang": "de"
-  },
-  {
-    "url": "https://www.medizininformatik-initiative.de/fhir/core/modul-person/ValueSet/Vitalstatus",
     "source_lang": "de"
   },
   {
@@ -64,15 +76,8 @@
     "source_lang": "de"
   },
   {
-    "url": "https://www.medizininformatik-initiative.de/fhir/modul-consent/ValueSet/mii-vs-consent-policy",
-    "source_lang": "de"
-  },
-  {
     "url": "https://www.medizininformatik-initiative.de/fhir/core/modul-diagnose/ValueSet/mii-vs-diagnose-orphanet",
     "source_lang": "de"
-  },
-  {
-    "url": "http://hl7.org/fhir/ValueSet/manifestation-or-symptom",
-    "source_lang": "en"
   }
 ]
+
