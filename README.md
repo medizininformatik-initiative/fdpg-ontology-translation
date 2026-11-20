@@ -1,54 +1,85 @@
 # Generating translations of ValueSets
 
+## How it works
+
+```bash 
+python translate.py --deepl --package_cache fhir-package-cache
+```
+
+1. By starting the script the ``ValueSetManager.py`` collects all valuesets found in the specified source folder
+   and expands all which are not already present in the cache using the server and caches them into a folder on disk.
+   Expansion can take quite some time => caching is useful.
+2. With all valuesets expanded the ``Translator.py`` collects all codes and sorts them by the following key (system,
+   version)
+   into a dictionary
+3. All existing **FDPG** supplements get downloaded and already existing translations get reused for matching codes,
+   where the
+   original display did not change, across all versions of a codesystem.
+4. ``Translator`` uses the specified ``TranslationEngine`` (deepl, dry_run, llm - coming soon) to translate the
+   remaining
+   codes
+   which were not covered by the supplements
+    - In all cases the language is guessed once per codesystem by the predefined ``codesystem to language`` mapping or
+      the local python module "``lingua``"
+    - ``DeeplTranslationEngine``: uses a ``.detected_source_lang`` to confirm the guess and carries on translating if
+      true. Else DeepL’s detected language replaces the guess for the rest of the translation.
+    - ``DryRunTranslationEngine``: assumes the guessed language is correct and only counts the characters
+5. Translated codesystems get exported to the output folder by (system, version) as supplements
+
 ## Using this script
+
 ### Before executing the script
-- prepare the url of your fhir term server
-- get the certificate
-  - server certificate
-  - key (**the key must be unencrypted!**)
-     ````bash
-    openssl rsa -in client_cert/fdpg.key -out client_cert/fdpg_unencrypted.key
-    ````
-- get a deeplAPI key and install module called '*deepl*'
+
+- install dependencies
   ````bash
-    pip install deepl
+    pip install -r requirements.txt
   ````
-- prepare a json file which holds pairs of (urls,source_language) like in the example below:
-   ````json
-  [
-    {
-      "url": "https://www.medizininformatik-initiative.de/fhir/core/modul-person/ValueSet/Vitalstatus",
-      "source_lang" : "de"
-    },{
-      "url": "value-sets/Vitalstatus.json",
-      "source_lang" : "de"
-    },
-    {
-     "url": "value-sets/administrative-gender.json",
-      "source_lang" : "en"
-    }
-  ] 
-   ````
-### After executing the script
-The translated files will be found in the specified folder
+- configure project .env
+    - follow the [.env.example](.env.example) and the [env param table](#script-env-params) below
 
-### Discussing parameters
+### Script I/O
 
-| Parameter            | Explanation                                                        | Value                                       | Example                                                  |
-|----------------------|--------------------------------------------------------------------|:--------------------------------------------|:---------------------------------------------------------|
-| --terminology_server | fhir term server url                                               | string                                      | ex: https://public-test.mii-termserv.de/fhir/            |
-| --server_certificate | certificate for the server                                         | string (filePath to .pem)                   | client_cert/fdpg.pem                                     |
-| --private_key        | certificate key                                                    | string (filePath to ***unencrypted!***.key) | client_cert/fdpg_unencrypted.key                         |
-| --deepl_api_key      | Deepl apiKey                                                       | string                                      |                                                          |
-| --value_sets         | files to be translated                                             | string (filePath to .json)                  | follow the example above or test with **ValueSets.json** |
-| --target_folder      | folder to store the result                                         | string (folder path)                        | code-systems                                             |
-| --log_level          | notset,debug,info,warning,error,critical                           |                                             |                                                          |
-| --batch_size         | nr  of elements sent simultaneously                                | int                                         | 5                                                        |
-| --dry_run            | Do not translate, only count number of characters to be translated | store_true                                  |                                                          |
+There are two ways to provide the script with the valuesets to be translated. At least one must be provided.
+
+1. by ``--package_cache <package-cache-folder>`` which takes a folder with the structure as how the package_manager from
+   the ontology-generator would provide. It can be copy-pasted.
+2. by ```--input_folder <input-valuesets>``` by simply dumping valuesets to be translated into the input folder
+
+The translated files will be found in the specified folder ```--target_folder <output-folder>``` (default:
+"code-systems")
+
+### Script params
+
+| Parameter       | Explanation                                                                               | Example - default |
+|-----------------|-------------------------------------------------------------------------------------------|:------------------|
+| --target_folder | folder to store the result                                                                | "code-systems"    |
+| --deepl         | Choose to translate with deepl translation engine - only works when api key is provided   |                   |
+| --dry_run       | Default behaviour. Do not translate, only count number of characters to be translated.    |                   |
+| --package_cache | input valuesets structured as the package-manager of the ontology-generator would produce |                   |
+| --input_folder  | input folder of valuesets                                                                 | None              |
+
+### Script .env params
+
+- see .env.example for details
+
+| Parameter                 | Explanation                                                          | Example                              |
+|---------------------------|----------------------------------------------------------------------|--------------------------------------|
+| DEEPL_API_KEY             | deepl api key                                                        |                                      |
+| TERMINOLOGY_SERVER        | fhir endpoint of termserver                                          | https://public-test.example.de/fhir/ |
+| BACKUP_TERMINOLOGY_SERVER | backup terminology server - asked when the main server has no result |                                      |
+| SERVER_CERTIFICATE        | path to .pem server certificate                                      |                                      |
+| PRIVATE_KEY               | path to .key private key for server certificate                      |                                      |
+| LOG_LEVEL                 | log level                                                            | info                                 |
 
 
-### Using local files
-Just specify local files in your "value_sets" .json file. 
-When there are only local files the server_certificate and private_key become oboslete
 
-You can mix local files and urls in on json file
+
+
+
+
+
+
+
+
+
+
