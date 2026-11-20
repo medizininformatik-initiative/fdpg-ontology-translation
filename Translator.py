@@ -1,144 +1,208 @@
-import json
-import os
-from urllib.parse import urlparse
 import logging
-import deepl
+import re
+from pathlib import Path
+
+from fhir.resources.R4B.bundle import Bundle, BundleEntry
+from fhir.resources.R4B.codesystem import (
+    CodeSystem,
+    CodeSystemConcept,
+    CodeSystemConceptDesignation,
+)
+from fhir.resources.R4B.valueset import ValueSet, ValueSetExpansionContains
+
+from models import ConceptTriplet, TripletKey
+from TerminologyClient import TerminologyClient
+from TranslatorEngine import TranslationEngine
 
 logger = logging.getLogger(__name__)
+
+# project tag the termserver sets on every FDPG resource
+FDPG_PROJECT_TAG = (
+    "https://mii-termserv.de/fhir/su-termserv/CodeSystem/mii-cs-suts-resource-tags-project",
+    "fdpg",
+)
+
+
+def has_tag(resource, tag: tuple[str, str]) -> bool:
+    tags = resource.meta.tag if resource.meta and resource.meta.tag else []
+    return any((t.system, t.code) == tag for t in tags)
 
 
 class Translator:
     def __init__(
-            self, deepl_auth_key, session, terminology_server_address, target_langs
+        self,
+        translation_engine: TranslationEngine,
+        terminology_client: TerminologyClient,
+        target_langs: list[str],
     ):
-        self.value_set = None
-        self.code_system_template = None
-        self.code_system_version = None
-        self.code_system_url = None
-        self.code_system_name = None
-        self.deepl_engine = deepl.Translator(deepl_auth_key)
-        self.session = session
-        self.terminology_server_address = terminology_server_address
-        self.target_langs = target_langs
+        self.value_set: ValueSet | None
+        self.code_systems: list[CodeSystem]
+        self.translation_engine: TranslationEngine = translation_engine
+        self.terminology_client: TerminologyClient = terminology_client
+        self.target_langs: list[str] = target_langs
 
-    def get_code_system_url(self):
-        for param in self.value_set["expansion"]["parameter"]:
-            if param["name"] == "used-codesystem":
-                return param["valueUri"]
+        # codesystem, codesystem_version
+        # codes get loaded into the following structure, then translated by codesystem in batches
+        self.concept_translations: dict[
+            tuple[str, str | None], dict[TripletKey, ConceptTriplet]
+        ] = {}
 
-    def get_code_system_name(self):
-        return self.value_set.get(
-            "name",
-            urlparse(self.value_set.get("url"))
-            .path.split("/ValueSet/", 1)[-1]
-            .replace("/", ""),
-        )
+        # translated concepts get output into this structure
+        # self.concepts_translated: dict[
+        #     tuple[str, str | None], dict[TripletKey, ConceptTriplet]
+        # ] = {}
 
-    def get_value_sets(self, value_set_url):
-        try:
-            with open(value_set_url, "r", encoding="utf-8") as file:
-                return json.load(file)
-        except IOError:
-            logger.info("%s not found among files locally, downloading instead ... ", value_set_url)
+    def _enqueue(self, triplet: ConceptTriplet) -> None:
+        codesystem_ident = (triplet.system, triplet.version)
+        codesystem = self.concept_translations.get(codesystem_ident)
+        existing = codesystem.get(triplet.key) if codesystem else None
 
-        onto_server_value_set_url = f"{self.terminology_server_address}ValueSet/$expand?url={value_set_url}"
-        response = self.session.get(onto_server_value_set_url)
-        if response.status_code == 200:
-            return response.json()
-        else:
-            logger.error("Request failed with status code %s:", response.status_code)
-            logger.error(response.json()['issue'][0]['diagnostics'])
-        return False
+        if codesystem is None:
+            self.concept_translations[codesystem_ident] = {}
 
-    @staticmethod
-    def convert_lang_code_to_deepl(lang_code):
-        if lang_code == "en":
-            return "en-us"
-        return lang_code
+        if existing is None:
+            self.concept_translations[codesystem_ident][triplet.key] = triplet
+            return
 
-    def translate(self, value_set_url, source_lang, dry_run , batch_size=5):
-        self.value_set = self.get_value_sets(value_set_url)
-        if not self.value_set:
-            return 0
-        self.code_system_name = self.get_code_system_name()
-        self.code_system_url = self.get_code_system_url().split("|")[0]
-        self.code_system_version = self.get_code_system_url().split("|")[-1]
-        self.code_system_template = json.load(open("CodeSystemTemplate.json", "r", encoding="utf-8"))
+    def collect_codes_from_value_set(self, valueSet: ValueSet):
+        """
 
-        if "contains" not in self.value_set["expansion"]:
-            return 0
+        :param valueSet:
+        :return:
+        """
+        if valueSet.expansion is None or valueSet.expansion.contains is None:
+            logger.error(
+                f"ValueSet {valueSet.url} with version {valueSet.version} needs to be expanded"
+            )
+            return
 
-        concepts_to_translate = self.value_set["expansion"]["contains"]
-        nr_of_values = len(concepts_to_translate)
-        char_count = 0
-
-        for value_index in range(0, nr_of_values, batch_size):
-            concepts = []
-            text = []
-
-            for concept in concepts_to_translate[value_index:min(value_index + batch_size, nr_of_values)]:
-                concepts.append(
-                    {
-                        "code": concept["code"],
-                        "designation": []
-                    }
+        for concept in valueSet.expansion.contains:
+            concept: ValueSetExpansionContains
+            if not all([concept.code, concept.system, concept.display]):
+                logger.error(
+                    f"Code {concept.code} has no url: {concept.system} or display: {concept.display}"
                 )
-                text.append(concept["display"])
-                char_count = char_count + len(concept["display"])
+                continue
 
-            for target_lang in self.target_langs:
-                text_translated = text
+            self._enqueue(
+                ConceptTriplet(
+                    code=concept.code,
+                    system=concept.system,
+                    version=concept.version,
+                    original_display=concept.display,
+                )
+            )
 
-                if target_lang != source_lang and not dry_run:
-                    logger.info("Translating....")
-                    translations = self.deepl_engine.translate_text(
-                        text,
-                        source_lang=source_lang,
-                        target_lang=self.convert_lang_code_to_deepl(target_lang),
-                        context=self.code_system_name
+    def translate(self):
+        """
+        Translate batch of codes from the same codesystem.
+        It needs to be the same to be able to reliably detect the codesystems source lang
+        :return:
+        """
+        for (system, version), codesystem in self.concept_translations.items():
+            # per target language: only codes without a translation yet (e.g. from a supplement)
+            todo = {
+                lang: [v for v in codesystem.values() if lang not in v.display]
+                for lang in self.target_langs
+            }
+
+            # the engine handles the source language itself
+            translated = self.translation_engine.translate(
+                system=system,
+                texts_by_lang={
+                    lang: [v.original_display for v in vs] for lang, vs in todo.items()
+                },
+                context=". ".join(
+                    v.original_display for v in list(codesystem.values())[:50]
+                ),  # TBD
+            )
+
+            for lang, vs in todo.items():
+                for v, t in zip(vs, translated[lang], strict=True):
+                    v.display[lang] = t
+
+    def build_cache_from_existing_supplements_bundle(self):
+        suplements_bundle: Bundle | None = (
+            self.terminology_client.fetch_existing_supplements()
+        )
+        if not suplements_bundle:
+            return
+
+        for entry in suplements_bundle.entry or []:
+            entry: BundleEntry
+            # only FDPG supplements; checked on the header so others are never downloaded
+            if not has_tag(entry.resource, FDPG_PROJECT_TAG):
+                continue
+            found = self.terminology_client.get_code_system(id=entry.resource.id)
+            if not found or not found[0].supplements:
+                continue
+            css: CodeSystem = found[0]
+
+            # the base system is in "supplements" ("url|version"), not in css.url.
+            # The version is ignored; instead a translation is only applied
+            # if the supplement still contains the queued original source text
+            system = css.supplements.partition("|")[0]
+            queued_groups = [
+                (ver, group)
+                for (sys, ver), group in self.concept_translations.items()
+                if sys == system
+            ]
+
+            # only codes that are already queued from the ValueSets get the designations
+            for concept in css.concept or []:
+                for ver, group in queued_groups:
+                    triplet = group.get((concept.code, system, ver))
+                    designations = concept.designation or []
+                    # source text changed between versions -> translate again
+                    if triplet is None or triplet.original_display not in [
+                        d.value for d in designations
+                    ]:
+                        continue
+                    for designation in designations:
+                        # de-DE => de
+                        triplet.display[designation.language.split("-")[0]] = (
+                            designation.value
+                        )
+
+    def export_codesystem_supplements(self, output_folder: Path):
+        output_folder.mkdir(exist_ok=True)
+
+        for (system, version), concepts in self.concept_translations.items():
+            # key from the last part of system and version, e.g. "alpha_id_2025", "sct_20240701"
+            short = lambda s: re.split(r"[/:]", s.rstrip("/"))[-1]
+            key = re.sub(
+                r"[^A-Za-z0-9]+",
+                "_",
+                f"{short(system)}_{short(version)}" if version else short(system),
+            ).strip("_")
+            # FHIR name: [A-Z][A-Za-z0-9_]*
+            name = f"{key[0].upper()}{key[1:]}" if key[0].isalpha() else f"CS_{key}"
+
+            # same conventions as the FDPG supplements already on the server
+            codesystem_out: CodeSystem = CodeSystem(
+                url=f"https://fdpg.de/fhir/CodeSystem/{key}/translations",
+                version="1.0.0",
+                name=f"{name}_FDPG_Translation_Supplement",
+                status="active",  # required
+                content="supplement",  # required
+                supplements=f"{system}|{version}" if version else system,
+                concept=[
+                    CodeSystemConcept(
+                        code=concept_triplet.code,
+                        designation=[
+                            CodeSystemConceptDesignation(language=k, value=v)
+                            for k, v in concept_triplet.display.items()
+                        ],
+                        display=concept_triplet.original_display,
                     )
+                    for concept_triplet in concepts.values()
+                ],
+                count=len(concepts),
+            )
 
-                    text_translated = [translation.text for translation in translations]
+            out_file = output_folder / f"{key}.json"
+            out_file.write_text(
+                codesystem_out.model_dump_json(indent=2), encoding="utf-8"
+            )
 
-                for index in range(0, len(concepts)):
-                    concepts[index]["designation"].append(
-                        {
-                            "value": text_translated[index],
-                            "language": target_lang
-                        }
-                    )
-
-            self.code_system_template["concept"].append(concepts)
-
-        return char_count
-
-
-    def save(self, target_folder):
-
-        self.code_system_template["title"] = (
-            f"{self.code_system_name} Supplement gebunden an CS-Version"
-        )
-        self.code_system_template["id"] = (
-            f"fdpg-supplement-codesystem-{self.code_system_name}"
-        )
-        self.code_system_template["url"] = (
-            f"https://fdpg.de/fhir/CodeSystem/{self.code_system_name}/translations"
-        )
-        self.code_system_template["supplements"] = (
-            f"{self.code_system_url}|{self.code_system_version}"
-        )
-        self.code_system_template["count"] = len(self.code_system_template["concept"])
-        self.code_system_template["name"] = f"{self.code_system_name}_supplement"
-
-        if not os.path.exists(target_folder):
-            os.makedirs(target_folder)
-
-        with open(os.path.join(target_folder, f"{self.code_system_name}.json"), "w", encoding="utf-8") as file:
-            json.dump(self.code_system_template, file, ensure_ascii=False)
-
-        logger.info(
-            "Translated %s. Saved at %s/%s.json",
-            self.code_system_name,
-            target_folder,
-            self.code_system_name
-        )
+            logger.info(f"Translated {system}|{version}. Saved at {out_file}")
